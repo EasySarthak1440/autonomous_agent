@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -96,8 +97,8 @@ class ExecuteTaskResponse(BaseModel):
     """Response from task execution."""
     task_id: str
     state: str
-    result: dict = None
-    error: str = None
+    result: Optional[dict] = None
+    error: Optional[str] = None
     steps_executed: int
     tools_used: list
     execution_time: float
@@ -180,7 +181,7 @@ async def execute_task(request: ExecuteTaskRequest, background_tasks: Background
         return ExecuteTaskResponse(
             task_id=response.task_id,
             state=response.state.value,
-            result=response.result,
+            result={"data": response.result} if response.result is not None else None,
             error=response.error,
             steps_executed=response.steps_executed,
             tools_used=response.tools_used,
@@ -237,11 +238,14 @@ async def get_tool(tool_name: str):
 
 
 @app.post("/tools/{tool_name}/execute", tags=["Tools"])
-async def execute_tool(tool_name: str, parameters: dict):
+async def execute_tool(tool_name: str, parameters: dict = None):
     """Execute a specific tool directly."""
     global agent
     
-    result = await agent.tool_registry.execute(tool_name, parameters)
+    if parameters is None:
+        parameters = {}
+    
+    result = await agent.tool_registry.execute(tool_name, parameters, validate=False)
     
     if not result.success:
         raise HTTPException(status_code=400, detail=result.error)
