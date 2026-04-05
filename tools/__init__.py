@@ -53,6 +53,7 @@ class ToolRegistry:
         
         # Register built-in tools
         self._register_builtin_tools()
+        self._register_industry_tools()
     
     def _register_builtin_tools(self):
         """Register basic built-in tools."""
@@ -60,7 +61,6 @@ class ToolRegistry:
             from . import builtin
             from inspect import signature
             
-            # Register all tools from the builtin module
             for tool_name in dir(builtin):
                 if tool_name.startswith('_'):
                     continue
@@ -76,6 +76,28 @@ class ToolRegistry:
                         )
         except ImportError as e:
             logger.warning(f"Could not register builtin tools: {e}")
+    
+    def _register_industry_tools(self):
+        """Register industry tools."""
+        try:
+            from . import industry
+            
+            for tool_name in dir(industry):
+                if tool_name.startswith('_'):
+                    continue
+                obj = getattr(industry, tool_name)
+                if callable(obj) and hasattr(obj, '_is_tool'):
+                    tool_def = getattr(obj, '_tool_definition', None)
+                    if tool_def:
+                        self.register(
+                            name=tool_def.name,
+                            func=obj,
+                            description=tool_def.description,
+                            parameters=tool_def.parameters
+                        )
+                        logger.info(f"Registered industry tool: {tool_def.name}")
+        except ImportError as e:
+            logger.warning(f"Could not register industry tools: {e}")
     
     def register(
         self,
