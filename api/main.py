@@ -4,6 +4,12 @@ Autonomous Agent API - FastAPI REST endpoints
 
 import logging
 import os
+import sys
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 

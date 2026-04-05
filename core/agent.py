@@ -12,7 +12,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Optional
 
-from llm import LLMBackend
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from core.llm import LLMBackend
 from tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -30,6 +34,10 @@ def _get_planner(llm, tool_registry):
 def _get_safety():
     from safety import SafetyValidator
     return SafetyValidator
+
+def _get_execution_result():
+    from planning import ExecutionResult
+    return ExecutionResult
 
 
 class AgentState(Enum):
@@ -117,8 +125,8 @@ class AutonomousAgent:
         MemorySystem = _get_memory()
         self.memory = MemorySystem()
         
-        Planner = _get_planner(self.llm, self.tool_registry)
-        self.planner = Planner
+        PlannerClass = _get_planner(self.llm, self.tool_registry)
+        self.planner = PlannerClass
         
         self.safety = _get_safety()() if self.config.enable_safety else None
         
@@ -214,8 +222,10 @@ class AutonomousAgent:
         
         return context
 
-    async def _execute_plan(self, plan, context) -> ExecutionResult:
+    async def _execute_plan(self, plan, context):
         """Execute the planned steps with safety checks."""
+        ExecutionResult = _get_execution_result()
+        
         self.state = AgentState.EXECUTING
         executor = self.planner.create_executor()
         
@@ -242,6 +252,7 @@ class AutonomousAgent:
             
             # Check if we need human input
             if result.requires_human_input:
+                ExecutionResult = _get_execution_result()
                 return ExecutionResult(
                     data=None,
                     success=False,
@@ -259,6 +270,7 @@ class AutonomousAgent:
         
         # Aggregate results
         final_result = self._aggregate_results(results)
+        ExecutionResult = _get_execution_result()
         
         return ExecutionResult(
             data=final_result,
@@ -285,7 +297,7 @@ class AutonomousAgent:
             "summary": f"Completed {len(successful_results)} steps successfully"
         }
 
-    async def _learn_from_execution(self, task: Task, result: ExecutionResult):
+    async def _learn_from_execution(self, task: Task, result):
         """Learn from execution for future improvement."""
         # Store experience in episodic memory
         await self.memory.store_experience(
