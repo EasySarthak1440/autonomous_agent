@@ -22,11 +22,6 @@ const resultOutput = document.getElementById('result-output');
 const toolsContainer = document.getElementById('tools-container');
 const memoriesContainer = document.getElementById('memories-container');
 const auditContainer = document.getElementById('audit-container');
-const toolSelect = document.getElementById('tool-select');
-const toolParamsContainer = document.getElementById('tool-params-container');
-const executeToolBtn = document.getElementById('execute-tool-btn');
-const toolResult = document.getElementById('tool-result');
-const toolResultOutput = document.getElementById('tool-result-output');
 const clearMemoriesBtn = document.getElementById('clear-memories-btn');
 
 // Fetch health status
@@ -35,7 +30,6 @@ async function fetchHealth() {
         const response = await fetch(`${API_BASE_URL}/health`);
         const data = await response.json();
         
-        // Update system status indicator
         if (data.status === 'healthy') {
             healthIndicator.className = 'status-indicator healthy';
             healthText.textContent = 'System Healthy';
@@ -47,11 +41,10 @@ async function fetchHealth() {
             healthText.textContent = 'System Unhealthy';
         }
         
-        // Update health details
         agentStatus.textContent = data.agent?.state || 'Unknown';
         llmStatus.textContent = data.llm_available ? 'Connected' : 'Disconnected';
         toolsCount.textContent = data.tools_count || 0;
-        memoryCount.textContent = data.memory_stats?.total_memories || 0;
+        memoryCount.textContent = data.memory_stats?.episodic?.count || 0;
         
     } catch (error) {
         console.error('Failed to fetch health:', error);
@@ -83,7 +76,6 @@ async function executeTask(taskData) {
         
         const result = await response.json();
         
-        // Display results
         resultTaskId.textContent = result.task_id;
         resultStatus.textContent = result.state;
         resultStatus.className = result.state === 'completed' ? 'status-allowed' : 'status-blocked';
@@ -99,7 +91,6 @@ async function executeTask(taskData) {
         
         taskResult.classList.remove('hidden');
         
-        // Refresh health after task execution
         await fetchHealth();
         
     } catch (error) {
@@ -123,15 +114,8 @@ async function fetchTools() {
             return;
         }
         
-        // Populate tool select dropdown
-        if (toolSelect) {
-            toolSelect.innerHTML = '<option value="">-- Choose a tool --</option>' + 
-                allTools.map(tool => `<option value="${tool.name}">${tool.name}</option>`).join('');
-        }
-        
-        // Update tools browser grid
         toolsContainer.innerHTML = allTools.map(tool => `
-            <div class="tool-item" onclick="selectTool('${tool.name}')">
+            <div class="tool-item">
                 <h4>${tool.name}</h4>
                 <p>${tool.description}</p>
                 <div class="tool-meta">
@@ -145,16 +129,6 @@ async function fetchTools() {
     } catch (error) {
         console.error('Failed to fetch tools:', error);
         toolsContainer.innerHTML = '<p class="loading">Failed to load tools</p>';
-    }
-}
-
-// Select tool from browser grid
-function selectTool(toolName) {
-    if (toolSelect) {
-        toolSelect.value = toolName;
-        populateToolParams(toolName);
-        // Scroll to tool execution section
-        document.getElementById('tool-select').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 }
 
@@ -256,118 +230,15 @@ taskForm.addEventListener('submit', async (e) => {
     await executeTask(taskData);
 });
 
-// Direct tool execution
-function populateToolParams(toolName) {
-    const tool = allTools.find(t => t.name === toolName);
-    if (!tool) {
-        toolParamsContainer.innerHTML = '';
-        executeToolBtn.disabled = true;
-        return;
-    }
-    
-    executeToolBtn.disabled = false;
-    
-    const params = tool.parameters || {};
-    const paramKeys = Object.keys(params);
-    
-    if (paramKeys.length === 0) {
-        toolParamsContainer.innerHTML = '<p class="loading">No parameters required</p>';
-        return;
-    }
-    
-    toolParamsContainer.innerHTML = paramKeys.map(key => {
-        const spec = params[key];
-        const required = spec.required !== false;
-        const defaultVal = spec.default !== null && spec.default !== undefined ? spec.default : '';
-        return `
-            <div class="form-group">
-                <label for="param-${key}">${key} ${required ? '*' : ''} (${spec.type || 'any'})</label>
-                <input type="text" id="param-${key}" data-param="${key}" value="${defaultVal}" placeholder="${spec.description || ''}">
-            </div>
-        `;
-    }).join('');
-}
-
-async function executeDirectTool(toolName) {
-    const params = {};
-    toolParamsContainer.querySelectorAll('input[data-param]').forEach(input => {
-        const key = input.dataset.param;
-        let value = input.value;
-        
-        // Try to parse as JSON if it looks like JSON
-        if (value.startsWith('{') || value.startsWith('[')) {
-            try {
-                value = JSON.parse(value);
-            } catch (e) {
-                // Keep as string
-            }
-        }
-        
-        // Try to parse numbers
-        if (!isNaN(value) && value !== '') {
-            value = Number(value);
-        }
-        
-        // Try to parse booleans
-        if (value === 'true') value = true;
-        if (value === 'false') value = false;
-        
-        params[key] = value;
-    });
-    
-    try {
-        executeToolBtn.disabled = true;
-        executeToolBtn.textContent = 'Executing...';
-        
-        const response = await fetch(`${API_BASE_URL}/tools/${toolName}/execute`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(params),
-        });
-        
-        const result = await response.json();
-        
-        toolResultOutput.textContent = JSON.stringify(result, null, 2);
-        toolResult.classList.remove('hidden');
-        
-    } catch (error) {
-        console.error('Failed to execute tool:', error);
-        alert(`Tool execution failed: ${error.message}`);
-    } finally {
-        executeToolBtn.disabled = false;
-        executeToolBtn.textContent = 'Execute Tool';
-    }
-}
-
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    // Initial fetch
     fetchHealth();
     fetchTools();
     fetchMemories();
     fetchAuditLog();
     
-    // Poll health status every 10 seconds
     setInterval(fetchHealth, 10000);
     
-    // Tool selection change
-    if (toolSelect) {
-        toolSelect.addEventListener('change', (e) => {
-            populateToolParams(e.target.value);
-        });
-    }
-    
-    // Tool execution button
-    if (executeToolBtn) {
-        executeToolBtn.addEventListener('click', () => {
-            const toolName = toolSelect.value;
-            if (toolName) {
-                executeDirectTool(toolName);
-            }
-        });
-    }
-    
-    // Clear memories button
     if (clearMemoriesBtn) {
         clearMemoriesBtn.addEventListener('click', async () => {
             if (!confirm('Are you sure you want to delete all memories?')) return;

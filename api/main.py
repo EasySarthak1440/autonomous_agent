@@ -37,16 +37,18 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     global agent
     
-    # Initialize agent with environment variables
-    ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-    model_name = os.environ.get("MODEL_NAME", "llama3.2")
+    # Initialize agent with Groq environment variables
+    groq_api_key = os.environ.get("GROQ_API_KEY", "")
+    groq_model = os.environ.get("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+    groq_base_url = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
     
-    logger.info(f"Connecting to LLM at: {ollama_url} with model: {model_name}")
+    logger.info(f"Connecting to Groq with model: {groq_model}")
     
     config = AgentConfig(
         name="business_automation_agent",
-        model_name=model_name,
-        model_url=ollama_url,
+        groq_model=groq_model,
+        groq_api_key=groq_api_key,
+        groq_base_url=groq_base_url,
         enable_safety=True,
         enable_learning=True,
         verbose=True

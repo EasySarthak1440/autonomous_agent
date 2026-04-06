@@ -42,7 +42,7 @@
 
             <!-- Task Execution -->
             <section class="card">
-                <h2>Execute Task (LLM-Powered)</h2>
+                <h2>Execute Task</h2>
                 <form id="task-form">
                     <div class="form-group">
                         <label for="task-goal">Goal *</label>
@@ -72,23 +72,6 @@
                         <p><strong>Tools Used:</strong> <span id="result-tools-used"></span></p>
                         <p><strong>Result:</strong> <pre id="result-output"></pre></p>
                     </div>
-                </div>
-            </section>
-
-            <!-- Direct Tool Execution -->
-            <section class="card">
-                <h2>Direct Tool Execution (Instant)</h2>
-                <div class="form-group">
-                    <label for="tool-select">Select Tool *</label>
-                    <select id="tool-select">
-                        <option value="">-- Choose a tool --</option>
-                    </select>
-                </div>
-                <div id="tool-params-container"></div>
-                <button id="execute-tool-btn" class="btn-primary" disabled>Execute Tool</button>
-                <div id="tool-result" class="hidden">
-                    <h3>Tool Result</h3>
-                    <pre id="tool-result-output"></pre>
                 </div>
             </section>
 

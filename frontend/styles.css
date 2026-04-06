@@ -168,22 +168,6 @@ main {
     cursor: not-allowed;
 }
 
-.btn-danger {
-    background-color: #da3633;
-    color: #ffffff;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.btn-danger:hover {
-    background-color: #f85149;
-}
-
 #task-result {
     margin-top: 20px;
     padding-top: 16px;

@@ -2,10 +2,10 @@
 
 ## Setup & Execution
 - **Docker (Recommended)**: `docker-compose up --build` then `docker-compose logs -f agent`
-  - Ollama service available at http://localhost:11434
-  - Agent connects to Ollama via internal Docker network
-- **Manual**: Install deps with `pip install -r requirements.txt`, start Ollama (`ollama serve`), pull model (`ollama pull llama3.2`), run API with `python api/main.py`
-  - Set `OLLAMA_BASE_URL=http://localhost:11434` if not using defaults
+  - Groq service available via API key in environment
+  - Agent connects to Groq via HTTPS API
+- **Manual**: Install deps with `pip install -r requirements.txt`, set GROQ_API_KEY in .env, run API with `python api/main.py`
+  - Set `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_BASE_URL` in .env
 - **API Entry Point**: `api/main.py` (FastAPI app)
 - **Port**: API runs on 8000 by default
 
@@ -17,24 +17,12 @@
 - **Important**: Tests may require Ollama running for full functionality (mocks used in unit tests)
 
 ## Environment Variables
-- `OLLAMA_BASE_URL` (default: `http://localhost:11434`)
-- `MODEL_NAME` (default: `llama3.2`)
+- `GROQ_API_KEY` - Groq API key (required)
+- `GROQ_MODEL` (default: `meta-llama/llama-4-scout-17b-16e-instruct`)
+- `GROQ_BASE_URL` (default: `https://api.groq.com/openai/v1`)
 - `LOG_LEVEL` (default: `INFO`)
 
-## Project Structure
-- **Core Logic**: `core/` directory (LLM, memory, safety, planning, tool registry)
-- **API Layer**: `api/` directory (FastAPI endpoints)
-- **Frontend**: `frontend/` directory (HTML/CSS/JS UI served at `/ui`)
-- **Tools**: Built-in tools in core modules, custom plugins extensible
-- **Tests**: `tests/` directory
-
-## Frontend
-- **Access**: `http://localhost:8000/ui` when API is running
-- **Features**: Task execution, health dashboard, tools browser, memory viewer, audit log
-- **Auto-refresh**: Health status polls every 10 seconds
-- **Static files**: Served via FastAPI's `StaticFiles` middleware
-
 ## Notes
-- Requires Ollama running locally for LLM functionality (unless using external endpoint)
+- Requires Groq API key for LLM functionality
 - Tool system is modular - see core modules for implementation patterns
 - Safety features include pre-execution validation and audit logging

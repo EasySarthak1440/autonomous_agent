@@ -255,12 +255,28 @@ def filter_data(data: list, condition: str) -> dict:
     read_only=True,
     tags=["data", "aggregate", "processing"]
 )
-def aggregate_data(data: list, field: str, operation: str) -> dict:
-    """Aggregate numeric field."""
+def aggregate_data(data: list, field: str = "", operation: str = "sum") -> dict:
+    """Aggregate numeric field. Accepts list of numbers or list of dicts."""
     try:
-        values = [d.get(field) for d in data if d.get(field) is not None]
+        # Handle plain list of numbers: [1, 2, 3]
+        if data and isinstance(data[0], (int, float)):
+            values = [x for x in data if isinstance(x, (int, float))]
+        # Handle list of dicts: [{"value": 1}, {"value": 2}]
+        elif data and isinstance(data[0], dict):
+            if not field:
+                # If no field given, try to find numeric values
+                values = []
+                for d in data:
+                    for v in d.values():
+                        if isinstance(v, (int, float)):
+                            values.append(v)
+            else:
+                values = [d.get(field) for d in data if d.get(field) is not None]
+        else:
+            return {"success": False, "error": "Data must be a list of numbers or dicts"}
+        
         if not values:
-            return {"success": False, "error": f"No values found for field: {field}"}
+            return {"success": False, "error": "No numeric values found"}
         
         if operation == 'sum':
             result = sum(values)
@@ -277,7 +293,7 @@ def aggregate_data(data: list, field: str, operation: str) -> dict:
         
         return {
             "success": True,
-            "field": field,
+            "field": field or "values",
             "operation": operation,
             "result": result,
             "count": len(values)

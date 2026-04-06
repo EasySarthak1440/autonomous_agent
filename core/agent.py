@@ -53,8 +53,9 @@ class AgentState(Enum):
 class AgentConfig:
     """Configuration for the autonomous agent."""
     name: str = "autonomous_agent"
-    model_name: str = "llama3.2"
-    model_url: str = "http://localhost:11434"
+    groq_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
+    groq_api_key: str = ""
+    groq_base_url: str = "https://api.groq.com/openai/v1"
     temperature: float = 0.7
     max_tokens: int = 4096
     max_iterations: int = 100
@@ -114,8 +115,9 @@ class AutonomousAgent:
         
         # Initialize core components
         self.llm = LLMBackend(
-            model_name=self.config.model_name,
-            model_url=self.config.model_url,
+            model_name=self.config.groq_model,
+            api_key=self.config.groq_api_key,
+            base_url=self.config.groq_base_url,
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens
         )

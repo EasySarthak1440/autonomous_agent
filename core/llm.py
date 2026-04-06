@@ -1,5 +1,5 @@
 """
-LLM Backend - Integration with local LLM servers (Ollama, vLLM, etc.)
+LLM Backend - Integration with Groq API (OpenAI-compatible)
 """
 
 import json
@@ -12,18 +12,20 @@ logger = logging.getLogger(__name__)
 
 
 class LLMBackend:
-    """Backend for interfacing with local LLM servers."""
+    """Backend for interfacing with Groq API (OpenAI-compatible)."""
     
     def __init__(
         self,
-        model_name: str = "llama3.2",
-        model_url: str = "http://localhost:11434",
+        model_name: str = "meta-llama/llama-4-scout-17b-16e-instruct",
+        api_key: str = "",
+        base_url: str = "https://api.groq.com/openai/v1",
         temperature: float = 0.7,
         max_tokens: int = 4096,
         timeout: int = 120
     ):
         self.model_name = model_name
-        self.model_url = model_url
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.timeout = timeout
@@ -51,18 +53,23 @@ class LLMBackend:
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "stream": False
+        }
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
         }
         
         try:
             async with self._get_session().post(
-                f"{self.model_url}/api/chat",
+                f"{self.base_url}/chat/completions",
                 json=payload,
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=self.timeout)
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-                    return result["message"]["content"]
+                    return result["choices"][0]["message"]["content"]
                 else:
                     error = await response.text()
                     raise Exception(f"LLM API error: {response.status} - {error}")
@@ -78,14 +85,6 @@ class LLMBackend:
     ) -> dict:
         """
         Generate structured output conforming to a schema.
-        
-        Args:
-            prompt: The user prompt
-            schema: JSON schema for expected output
-            system_prompt: Optional system prompt
-            
-        Returns:
-            Parsed JSON response
         """
         schema_str = json.dumps(schema)
         full_prompt = f"""{prompt}
@@ -99,7 +98,6 @@ JSON Response:"""
         
         # Parse JSON from response
         try:
-            # Find JSON in response (in case there's extra text)
             start = response.find('{')
             end = response.rfind('}') + 1
             if start >= 0 and end > start:
@@ -126,18 +124,23 @@ JSON Response:"""
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "stream": False
+        }
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
         }
         
         try:
             async with self._get_session().post(
-                f"{self.model_url}/api/chat",
+                f"{self.base_url}/chat/completions",
                 json=payload,
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=self.timeout)
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-                    return result["message"]["content"]
+                    return result["choices"][0]["message"]["content"]
                 else:
                     error = await response.text()
                     raise Exception(f"LLM API error: {response.status} - {error}")
@@ -145,10 +148,15 @@ JSON Response:"""
             raise Exception(f"Failed to connect to LLM: {e}")
 
     async def check_health(self) -> bool:
-        """Check if the LLM server is available."""
+        """Check if the LLM API is available."""
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+        }
         try:
             async with self._get_session().get(
-                f"{self.model_url}/api/tags",
+                f"{self.base_url}/models",
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=5)
             ) as response:
                 return response.status == 200
