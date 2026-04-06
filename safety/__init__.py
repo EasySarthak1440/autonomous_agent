@@ -84,10 +84,9 @@ class SafetyValidator:
         self.add_rule(SafetyRule(
             name="block_dangerous_commands",
             description="Block potentially dangerous shell commands",
-            pattern=r"(rm\s+-rf|mkfs|dd\s+if|chmod\s+777|>\s*/dev/sd)",
+            pattern=r"(rm\s+-rf|mkfs|dd\s+if|chmod\s+777|>\s*/dev/sd|sudo\s+rm|wget.*\|.*sh|curl.*\|.*sh)",
             action_categories=[ActionCategory.SYSTEM],
-            severity=SafetyLevel.BLOCKED,
-            blocked_tools=["execute_command"]
+            severity=SafetyLevel.BLOCKED
         ))
         
         # Require approval for file deletion

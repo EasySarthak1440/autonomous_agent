@@ -5,6 +5,7 @@ Slack, Teams, Email, Calendar, Notion, Jira integrations
 
 import json
 import logging
+import os
 from typing import Optional, Any
 from datetime import datetime, timedelta
 
@@ -63,19 +64,27 @@ def send_slack_message(
     tags=["email", "smtp", "notification"]
 )
 def send_email(
-    smtp_server: str,
-    smtp_port: int,
-    username: str,
-    password: str,
     to_address: str,
     subject: str,
     body: str,
-    from_address: Optional[str] = None
+    from_address: Optional[str] = None,
+    smtp_server: Optional[str] = None,
+    smtp_port: Optional[int] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None
 ) -> dict:
     """Send an email via SMTP."""
     import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
+    
+    smtp_server = smtp_server or os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = smtp_port or int(os.environ.get("SMTP_PORT", "587"))
+    username = username or os.environ.get("SMTP_USERNAME", "")
+    password = password or os.environ.get("SMTP_PASSWORD", "")
+    
+    if not username or not password:
+        return {"success": False, "error": "SMTP credentials not configured. Set SMTP_USERNAME and SMTP_PASSWORD environment variables."}
     
     try:
         msg = MIMEMultipart()
@@ -92,6 +101,7 @@ def send_email(
         return {
             "success": True,
             "to": to_address,
+            "from": from_address or username,
             "subject": subject
         }
     except Exception as e:

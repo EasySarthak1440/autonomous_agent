@@ -286,14 +286,15 @@ class AutonomousAgent:
         if not results:
             return None
         
-        successful_results = [r for r in results if r.success]
+        from planning import StepStatus
+        successful_results = [r for r in results if r.status == StepStatus.COMPLETED]
         
         if len(successful_results) == 1:
-            return successful_results[0].data
+            return successful_results[0].result
         
         # Return list of successful results
         return {
-            "results": [r.data for r in successful_results],
+            "results": [r.result for r in successful_results],
             "summary": f"Completed {len(successful_results)} steps successfully"
         }
 

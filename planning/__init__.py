@@ -46,6 +46,7 @@ class ExecutionStep:
     confidence: float = 0.0
     requires_human_input: bool = False
     human_prompt: Optional[str] = None
+    tool_name: str = ""
     metadata: dict = field(default_factory=dict)
 
 
@@ -89,47 +90,52 @@ class Planner:
         """
         available_tools = self.tool_registry.get_available_tools()
         
-        tools_description = "\n".join([
-            f"- {t['name']}: {t['description']}"
-            for t in available_tools
-        ])
+        # Find relevant tools by searching goal keywords
+        relevant_tools = self.tool_registry.search(goal)
+        if not relevant_tools:
+            # If no matches, use all tools but with concise descriptions
+            relevant_tools = list(self.tool_registry.get_all().values())
         
-        system_prompt = f"""You are a planning AI. Given a goal and context, create a step-by-step execution plan.
+        # Build concise tool descriptions with parameters
+        tools_list = []
+        for t in relevant_tools:
+            # Handle both dict and ToolDefinition
+            if isinstance(t, dict):
+                t_name = t.get("name", "")
+                t_desc = t.get("description", "")
+                t_params = t.get("parameters", {})
+            else:
+                t_name = t.name
+                t_desc = t.description
+                t_params = t.parameters
+            
+            params = []
+            for pname, pspec in t_params.items():
+                req = pspec.get("required", False)
+                ptype = pspec.get("type", "any")
+                params.append(f"{pname} ({ptype}, {'required' if req else 'optional'})")
+            params_str = ", ".join(params) if params else "no params"
+            tools_list.append(f'  "{t_name}": {t_desc}. Params: {params_str}')
+        
+        tools_description = "\n".join(tools_list)
+        
+        system_prompt = f"""You plan tasks by selecting tools. Return ONLY valid JSON.
 
 Available tools:
 {tools_description}
 
-Guidelines:
-1. Break down the goal into small, executable steps
-2. Each step should use exactly one tool
-3. Consider dependencies between steps
-4. Include retry logic for critical steps
-5. Estimate confidence for each step
-
-Respond with a JSON execution plan."""
+Rules:
+- Use EXACT tool names from the list
+- Include ALL required parameters with real values
+- Return ONLY JSON, no markdown, no explanation"""
         
         user_prompt = f"""Goal: {goal}
 
-Context:
-{json.dumps(context, indent=2)}
+Context: {json.dumps(context)}
 
-Create an execution plan as JSON:
-{{
-    "goal": "...",
-    "steps": [
-        {{
-            "action": "tool_name",
-            "parameters": {{...}},
-            "depends_on": [],
-            "max_retries": 3,
-            "timeout": 300
-        }}
-    ],
-    "estimated_duration": 0.0
-}}"""
+Return JSON with steps. Each step has "action" (tool name) and "parameters" (dict with values)."""
 
         try:
-            # Try structured output first
             plan_data = await self.llm.generate_with_structured_output(
                 user_prompt,
                 schema={
@@ -157,12 +163,23 @@ Create an execution plan as JSON:
                 system_prompt=system_prompt
             )
             
+            logger.info(f"LLM plan data: {json.dumps(plan_data, indent=2)}")
+            
+            steps = plan_data.get("steps", [])
+            
+            # Validate steps have real tool names
+            valid_tool_names = {t["name"] for t in available_tools}
+            valid_steps = [s for s in steps if s.get("action") in valid_tool_names]
+            
+            if not valid_steps:
+                raise Exception(f"No valid tool steps found. Got: {steps}")
+            
             plan = ExecutionPlan(
                 goal=plan_data.get("goal", goal),
                 estimated_duration=plan_data.get("estimated_duration", 0.0)
             )
             
-            for step_data in plan_data.get("steps", []):
+            for step_data in valid_steps:
                 step = ExecutionStep(
                     action=step_data.get("action", ""),
                     parameters=step_data.get("parameters", {}),
@@ -177,10 +194,9 @@ Create an execution plan as JSON:
             
         except Exception as e:
             logger.error(f"Failed to create plan: {e}")
-            # Fallback: single step with the goal as action
             return ExecutionPlan(
                 goal=goal,
-                steps=[ExecutionStep(action="execute_command", parameters={"command": goal})]
+                steps=[ExecutionStep(action="generate_report", parameters={"title": goal, "data": {"goal": goal}})]
             )
     
     def create_executor(self) -> 'PlanExecutor':
@@ -196,7 +212,7 @@ class PlanExecutor:
         self.tool_registry = tool_registry
     
     async def execute_step(self, step: ExecutionStep, context: dict) -> ExecutionStep:
-        """Execute a single step."""
+        """Execute a single step with retry logic."""
         step.status = StepStatus.RUNNING
         
         tool_name = step.action
@@ -205,24 +221,34 @@ class PlanExecutor:
         # Interpolate parameters from context
         parameters = self._interpolate_parameters(parameters, context)
         
-        # Execute tool
-        result = await self.tool_registry.execute(tool_name, parameters)
+        logger.info(f"Executing step: {tool_name} with params: {parameters}")
         
-        if result.success:
+        # Execute tool with retries
+        result = None
+        for attempt in range(step.max_retries + 1):
+            step.retry_count = attempt
+            result = await self.tool_registry.execute(tool_name, parameters)
+            
+            if result.success:
+                logger.info(f"Step {tool_name} succeeded on attempt {attempt + 1}")
+                break
+            
+            if attempt < step.max_retries:
+                logger.warning(f"Step {tool_name} failed (attempt {attempt + 1}/{step.max_retries}): {result.error}")
+        
+        step.tool_name = tool_name
+        
+        if result and result.success:
             step.status = StepStatus.COMPLETED
             step.result = result.data
             step.confidence = 1.0
         else:
             step.status = StepStatus.FAILED
-            step.error = result.error
-            
-            # Retry if allowed
-            if step.retry_count < step.max_retries:
-                step.retry_count += 1
-                step.status = StepStatus.PENDING
-                logger.warning(f"Retrying step {step.id} (attempt {step.retry_count})")
+            step.error = result.error if result else "No result"
+            step.confidence = 0.0
+            logger.error(f"Step {tool_name} failed after retries: {step.error}")
         
-        step.metadata["execution_time"] = result.execution_time
+        step.metadata["execution_time"] = result.execution_time if result else 0.0
         return step
     
     def _interpolate_parameters(self, parameters: dict, context: dict) -> dict:

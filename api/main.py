@@ -6,6 +6,10 @@ import logging
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -16,6 +20,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from core.agent import AutonomousAgent, AgentConfig, AgentResponse, AgentState, Task
@@ -71,6 +76,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve frontend static files
+frontend_path = Path(__file__).parent.parent / "frontend"
+if frontend_path.exists():
+    app.mount("/ui", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
 
 
 # ==================== Request/Response Models ====================
@@ -282,6 +292,15 @@ async def get_memory_stats():
     global agent
     
     return await agent.memory.get_statistics()
+
+
+@app.delete("/memory", tags=["Memory"])
+async def clear_memory():
+    """Clear all memories."""
+    global agent
+    
+    agent.memory.clear_all()
+    return {"success": True, "message": "All memories cleared"}
 
 
 @app.get("/audit", tags=["Safety"])

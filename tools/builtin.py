@@ -6,8 +6,11 @@ import json
 import logging
 import os
 import re
+import smtplib
 import sqlite3
 from datetime import datetime
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from typing import Any, Optional
 
 from . import tool

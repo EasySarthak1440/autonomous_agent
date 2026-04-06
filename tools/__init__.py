@@ -176,11 +176,21 @@ class ToolRegistry:
     
     def search(self, query: str) -> list[ToolDefinition]:
         """Search tools by name or description."""
-        query = query.lower()
-        return [
-            tool for tool in self._tools.values()
-            if query in tool.name.lower() or query in tool.description.lower()
-        ]
+        query_terms = query.lower().split()
+        results = []
+        for tool in self._tools.values():
+            name_lower = tool.name.lower()
+            desc_lower = tool.description.lower()
+            tags_lower = " ".join(tool.tags).lower()
+            combined = f"{name_lower} {desc_lower} {tags_lower}"
+            # Score by number of matching terms
+            score = sum(1 for term in query_terms if term in combined)
+            if score > 0:
+                results.append((score, tool))
+        
+        # Sort by score descending
+        results.sort(key=lambda x: x[0], reverse=True)
+        return [tool for score, tool in results]
     
     async def execute(
         self,
@@ -253,11 +263,6 @@ class ToolRegistry:
         if missing:
             return f"Missing required parameters: {', '.join(missing)}"
         
-        # Check for unknown parameters
-        unknown = [name for name in parameters if name not in tool.parameters]
-        if unknown:
-            return f"Unknown parameters: {', '.join(unknown)}"
-        
         return None
     
     def get_execution_history(self, limit: int = 100) -> list[ToolResult]:
@@ -281,12 +286,28 @@ def tool(
 ):
     """Decorator to define a tool."""
     def decorator(func: Callable) -> Callable:
+        import inspect
+        
+        # Extract parameters from function signature if not provided
+        if parameters is None:
+            sig = inspect.signature(func)
+            extracted_params = {
+                param_name: {
+                    "type": str(param.annotation) if param.annotation != inspect.Parameter.empty else "any",
+                    "required": param.default == inspect.Parameter.empty,
+                    "default": param.default if param.default != inspect.Parameter.empty else None
+                }
+                for param_name, param in sig.parameters.items()
+            }
+        else:
+            extracted_params = parameters
+        
         # Attach metadata to function
         func._is_tool = True
         func._tool_definition = ToolDefinition(
             name=name,
             description=description,
-            parameters=parameters or {},
+            parameters=extracted_params,
             category=category,
             requires_approval=requires_approval,
             read_only=read_only,

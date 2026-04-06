@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Agent Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Autonomous AI Agent</h1>
+            <div id="system-status">
+                <span class="status-indicator" id="health-indicator"></span>
+                <span id="health-text">Checking system...</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Health Dashboard -->
+            <section class="card">
+                <h2>System Health</h2>
+                <div class="health-grid" id="health-grid">
+                    <div class="health-item">
+                        <h3>Agent Status</h3>
+                        <p id="agent-status">Unknown</p>
+                    </div>
+                    <div class="health-item">
+                        <h3>LLM Connection</h3>
+                        <p id="llm-status">Checking...</p>
+                    </div>
+                    <div class="health-item">
+                        <h3>Available Tools</h3>
+                        <p id="tools-count">0</p>
+                    </div>
+                    <div class="health-item">
+                        <h3>Memory Items</h3>
+                        <p id="memory-count">0</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Task Execution -->
+            <section class="card">
+                <h2>Execute Task (LLM-Powered)</h2>
+                <form id="task-form">
+                    <div class="form-group">
+                        <label for="task-goal">Goal *</label>
+                        <input type="text" id="task-goal" required placeholder="What would you like the agent to accomplish?">
+                    </div>
+                    <div class="form-group">
+                        <label for="task-description">Description</label>
+                        <textarea id="task-description" rows="3" placeholder="Additional details about the task"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="task-priority">Priority (1-10)</label>
+                        <input type="number" id="task-priority" min="1" max="10" value="5">
+                    </div>
+                    <div class="form-group">
+                        <label for="task-context">Context (JSON)</label>
+                        <textarea id="task-context" rows="3" placeholder='{"key": "value"}'>{"department": "general"}</textarea>
+                    </div>
+                    <button type="submit" class="btn-primary">Execute Task</button>
+                </form>
+                <div id="task-result" class="hidden">
+                    <h3>Execution Result</h3>
+                    <div id="execution-details">
+                        <p><strong>Task ID:</strong> <span id="result-task-id"></span></p>
+                        <p><strong>Status:</strong> <span id="result-status"></span></p>
+                        <p><strong>Confidence:</strong> <span id="result-confidence"></span></p>
+                        <p><strong>Execution Time:</strong> <span id="result-execution-time"></span> seconds</p>
+                        <p><strong>Tools Used:</strong> <span id="result-tools-used"></span></p>
+                        <p><strong>Result:</strong> <pre id="result-output"></pre></p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Direct Tool Execution -->
+            <section class="card">
+                <h2>Direct Tool Execution (Instant)</h2>
+                <div class="form-group">
+                    <label for="tool-select">Select Tool *</label>
+                    <select id="tool-select">
+                        <option value="">-- Choose a tool --</option>
+                    </select>
+                </div>
+                <div id="tool-params-container"></div>
+                <button id="execute-tool-btn" class="btn-primary" disabled>Execute Tool</button>
+                <div id="tool-result" class="hidden">
+                    <h3>Tool Result</h3>
+                    <pre id="tool-result-output"></pre>
+                </div>
+            </section>
+
+            <!-- Tools Browser -->
+            <section class="card">
+                <h2>Available Tools</h2>
+                <div id="tools-container" class="tools-grid">
+                    <p class="loading">Loading tools...</p>
+                </div>
+            </section>
+
+            <!-- Memory Viewer -->
+            <section class="card">
+                <h2>Agent Memories</h2>
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+                    <button id="clear-memories-btn" class="btn-danger">Clear All Memories</button>
+                </div>
+                <div id="memories-container" class="memories-list">
+                    <p class="loading">Loading memories...</p>
+                </div>
+            </section>
+
+            <!-- Audit Log -->
+            <section class="card">
+                <h2>Safety Audit Log</h2>
+                <div id="audit-container" class="audit-table">
+                    <p class="loading">Loading audit log...</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -37,14 +37,6 @@ class LLMBackend:
     ) -> str:
         """
         Generate text using the LLM.
-        
-        Args:
-            prompt: The user prompt
-            system_prompt: Optional system prompt for context
-            **kwargs: Additional parameters to override defaults
-            
-        Returns:
-            Generated text response
         """
         temperature = kwargs.get("temperature", self.temperature)
         max_tokens = kwargs.get("max_tokens", self.max_tokens)
@@ -64,13 +56,13 @@ class LLMBackend:
         
         try:
             async with self._get_session().post(
-                f"{self.model_url}/api/chat/completions",
+                f"{self.model_url}/api/chat",
                 json=payload,
                 timeout=aiohttp.ClientTimeout(total=self.timeout)
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-                    return result["choices"][0]["message"]["content"]
+                    return result["message"]["content"]
                 else:
                     error = await response.text()
                     raise Exception(f"LLM API error: {response.status} - {error}")
@@ -125,13 +117,6 @@ JSON Response:"""
     ) -> str:
         """
         Chat with the LLM using message history.
-        
-        Args:
-            messages: List of message dicts with 'role' and 'content'
-            **kwargs: Additional parameters
-            
-        Returns:
-            Assistant response
         """
         temperature = kwargs.get("temperature", self.temperature)
         max_tokens = kwargs.get("max_tokens", self.max_tokens)
@@ -146,13 +131,13 @@ JSON Response:"""
         
         try:
             async with self._get_session().post(
-                f"{self.model_url}/api/chat/completions",
+                f"{self.model_url}/api/chat",
                 json=payload,
                 timeout=aiohttp.ClientTimeout(total=self.timeout)
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-                    return result["choices"][0]["message"]["content"]
+                    return result["message"]["content"]
                 else:
                     error = await response.text()
                     raise Exception(f"LLM API error: {response.status} - {error}")

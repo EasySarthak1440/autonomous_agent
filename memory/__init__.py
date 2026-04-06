@@ -112,7 +112,7 @@ class MemorySystem:
         
         # Simple keyword-based retrieval
         # In production, use vector embeddings for semantic search
-        query_terms = query.lower().split()
+        query_terms = [t for t in query.lower().split() if t]
         conditions = ["importance >= ?"]
         params = [min_importance]
         
@@ -121,10 +121,11 @@ class MemorySystem:
             params.append(memory_type)
         
         # Build LIKE conditions for each query term
-        like_conditions = " OR ".join(["content LIKE ?" for _ in query_terms])
-        conditions.append(f"({like_conditions})")
-        for term in query_terms:
-            params.append(f"%{term}%")
+        if query_terms:
+            like_conditions = " OR ".join(["content LIKE ?" for _ in query_terms])
+            conditions.append(f"({like_conditions})")
+            for term in query_terms:
+                params.append(f"%{term}%")
         
         where_clause = " AND ".join(conditions)
         
@@ -272,3 +273,15 @@ class MemorySystem:
         conn.close()
         
         logger.info(f"Consolidated memories: removed/updated {deleted} old entries")
+    
+    def clear_all(self):
+        """Clear all memories from the database."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM memories")
+        conn.commit()
+        conn.close()
+        
+        self.working_memory = {}
+        logger.info("All memories cleared")
