@@ -5,6 +5,7 @@ Autonomous Agent API - FastAPI REST endpoints
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -18,12 +19,20 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 from core.agent import AutonomousAgent, AgentConfig, AgentResponse, AgentState, Task
+
+# Prometheus metrics
+TASK_COUNT = Counter('agent_tasks_total', 'Total number of tasks executed', ['status'])
+TASK_DURATION = Histogram('agent_task_duration_seconds', 'Task execution duration in seconds')
+ACTIVE_TASKS = Gauge('agent_active_tasks', 'Number of currently active tasks')
+LLM_CALL_COUNT = Counter('agent_llm_calls_total', 'Total number of LLM calls made')
+TOKEN_USAGE = Histogram('agent_token_usage', 'Token usage per task', buckets=[100, 500, 1000, 2000, 4000, 8000])
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -149,6 +158,12 @@ async def root():
     }
 
 
+@app.get("/metrics", tags=["Monitoring"])
+async def metrics():
+    """Prometheus metrics endpoint."""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health():
     """Health check endpoint."""
@@ -180,6 +195,10 @@ async def execute_task(request: ExecuteTaskRequest, background_tasks: Background
     """
     global agent
     
+    # Increment active tasks gauge
+    ACTIVE_TASKS.inc()
+    start_time = time.time()
+    
     try:
         task = Task(
             description=request.description,
@@ -189,6 +208,20 @@ async def execute_task(request: ExecuteTaskRequest, background_tasks: Background
         )
         
         response = await agent.execute(task)
+        
+        # Record metrics
+        duration = time.time() - start_time
+        TASK_DURATION.observe(duration)
+        if response.state == AgentState.COMPLETED:
+            TASK_COUNT.labels(status="success").inc()
+        else:
+            TASK_COUNT.labels(status="failed").inc()
+        
+        # Record token usage if available in response metadata
+        if hasattr(response, 'metadata') and response.metadata:
+            metrics = response.metadata.get('metrics', {})
+            if 'tokens_used' in metrics:
+                TOKEN_USAGE.observe(metrics['tokens_used'])
         
         return ExecuteTaskResponse(
             task_id=response.task_id,
@@ -203,8 +236,16 @@ async def execute_task(request: ExecuteTaskRequest, background_tasks: Background
         )
         
     except Exception as e:
+        # Record failed task metrics
+        duration = time.time() - start_time
+        TASK_DURATION.observe(duration)
+        TASK_COUNT.labels(status="error").inc()
+        
         logger.error(f"Task execution failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Decrement active tasks gauge
+        ACTIVE_TASKS.dec()
 
 
 @app.get("/tools", response_model=list[ToolDefinition], tags=["Tools"])

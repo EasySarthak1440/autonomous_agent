@@ -139,6 +139,12 @@ curl http://localhost:8000/health
 | `SMTP_USERNAME` | - | SMTP username (email address) |
 | `SMTP_PASSWORD` | - | SMTP password (app password for Gmail) |
 
+### Monitoring & Observability
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_PROMETHEUS_METRICS` | `true` | Enable Prometheus metrics endpoint at /metrics |
+| `METRICS_PORT` | `8000` | Port for metrics server (same as API) |
+
 ### Enhanced Features (2026 Standards)
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -148,7 +154,6 @@ curl http://localhost:8000/health
 | `ENABLE_HALLUCINATION_DETECTION` | `true` | Enable LLM output hallucination detection |
 | `ENABLE_FALLBACK_STRATEGIES` | `true` | Enable fallback mechanisms for planning failures |
 | `ENABLE_HUMAN_IN_THE_LOOP` | `true` | Require human approval for high-risk operations |
-| `METRICS_PORT` | `9090` | Port for metrics server (if enabled) |
 | `CANARY_PERCENTAGE` | `5` | Percentage of traffic for canary deployments |
 
 ## Architecture
