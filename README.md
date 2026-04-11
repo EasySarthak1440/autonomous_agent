@@ -1,6 +1,7 @@
 # Autonomous AI Agent for Business Process Automation
 
 A self-contained AI system powered by LLMs that can autonomously execute business processes with minimal human intervention. Features a modern dark-themed web dashboard for easy interaction.
+Open source and community-driven - contributions welcome!
 
 ## Features
 
