@@ -6,7 +6,11 @@ import pytest
 import asyncio
 import tempfile
 import os
+import sys
 from unittest.mock import Mock, AsyncMock, patch
+
+# Add project root to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import directly from modules
 from core.agent import AutonomousAgent, AgentConfig, Task, AgentState
@@ -177,7 +181,7 @@ class TestAutonomousAgent:
         """Test agent can be initialized."""
         config = AgentConfig(
             name="test_agent",
-            model_name="llama3.2",
+            groq_model="llama3.2",
             enable_safety=True,
             enable_learning=True
         )

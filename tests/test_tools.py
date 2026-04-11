@@ -6,9 +6,13 @@ import pytest
 import asyncio
 import tempfile
 import os
+import sys
 from tools import ToolRegistry, ToolDefinition
 from safety import SafetyValidator, SafetyLevel
 from planning import ExecutionStep
+
+# Add project root to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
 class TestToolRegistry:

@@ -127,6 +127,40 @@ class ExecuteTaskResponse(BaseModel):
     needs_human_input: bool = False
 
 
+# Knowledge Graph Models
+class EntityResponse(BaseModel):
+    """Response for entity queries."""
+    entity: dict
+    memory_id: str
+    memory_content: str
+    memory_type: str
+    importance: float
+    created_at: str
+    metadata: dict
+
+
+class RelationshipResponse(BaseModel):
+    """Response for relationship queries."""
+    relationship: dict
+    memory_id: str
+    memory_content: str
+    memory_type: str
+    importance: float
+    created_at: str
+    metadata: dict
+
+
+class KnowledgeGraphStatsResponse(BaseModel):
+    """Response for knowledge graph statistics."""
+    total_memories: int
+    memories_with_entities: int
+    memories_with_relationships: int
+    unique_entity_types: List[str]
+    unique_relationship_types: List[str]
+    entity_coverage: float
+    relationship_coverage: float
+
+
 class ToolDefinition(BaseModel):
     """Tool definition."""
     name: str
@@ -344,6 +378,34 @@ async def clear_memory():
     
     agent.memory.clear_all()
     return {"success": True, "message": "All memories cleared"}
+
+
+# Knowledge Graph Endpoints
+@app.get("/knowledge/entities", response_model=List[EntityResponse], tags=["Knowledge Graph"])
+async def get_entities(entity_type: Optional[str] = None, limit: int = 10):
+    """Query entities from the knowledge graph."""
+    global agent
+    
+    entities = await agent.memory.query_entities(entity_type=entity_type, limit=limit)
+    return entities
+
+
+@app.get("/knowledge/relationships", response_model=List[RelationshipResponse], tags=["Knowledge Graph"])
+async def get_relationships(relationship_type: Optional[str] = None, limit: int = 10):
+    """Query relationships from the knowledge graph."""
+    global agent
+    
+    relationships = await agent.memory.query_relationships(relationship_type=relationship_type, limit=limit)
+    return relationships
+
+
+@app.get("/knowledge/stats", response_model=KnowledgeGraphStatsResponse, tags=["Knowledge Graph"])
+async def get_knowledge_graph_stats():
+    """Get statistics about the knowledge graph."""
+    global agent
+    
+    stats = await agent.memory.get_knowledge_graph_stats()
+    return stats
 
 
 @app.get("/audit", tags=["Safety"])
