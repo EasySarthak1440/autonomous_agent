@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Optional
+from typing import Optional, Dict, List
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +26,8 @@ from pydantic import BaseModel, Field
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 from core.agent import AutonomousAgent, AgentConfig, AgentResponse, AgentState, Task
+from core.llm import LLMBackend
+from autonomous_agent.automation.execution import WorkflowExecutor
 
 # Prometheus metrics
 TASK_COUNT = Counter('agent_tasks_total', 'Total number of tasks executed', ['status'])
@@ -39,6 +41,8 @@ logger = logging.getLogger(__name__)
 
 # Global agent instance
 agent: AutonomousAgent = None
+# Global workflow executor
+workflow_executor: Optional[WorkflowExecutor] = None
 
 
 @asynccontextmanager
@@ -65,6 +69,11 @@ async def lifespan(app: FastAPI):
     agent = AutonomousAgent(config)
     
     logger.info("Autonomous Agent started")
+    
+    # Initialize workflow executor
+    global workflow_executor
+    workflow_executor = WorkflowExecutor(agent, agent.memory)
+    logger.info("Workflow executor initialized")
     
     yield
     
@@ -406,6 +415,66 @@ async def get_knowledge_graph_stats():
     
     stats = await agent.memory.get_knowledge_graph_stats()
     return stats
+
+
+# Workflow Execution Endpoints
+class WorkflowExecutionRequest(BaseModel):
+    """Request to execute a workflow."""
+    workflow_id: str = Field(..., description="ID of the workflow to execute")
+    context: Optional[Dict[str, Any]] = Field(default=None, description="Initial context variables")
+
+
+class WorkflowExecutionResponse(BaseModel):
+    """Response from workflow execution."""
+    execution_id: str
+    status: str  # completed, failed, running
+    result: Optional[Any] = None
+    context: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+@app.post("/workflows/execute", response_model=WorkflowExecutionResponse, tags=["Workflow Automation"])
+async def execute_workflow(request: WorkflowExecutionRequest):
+    """Execute a workflow by ID."""
+    global workflow_executor, agent
+    
+    if workflow_executor is None:
+        # Initialize workflow executor if not already done
+from autonomous_agent.automation.execution import WorkflowExecutor
+        workflow_executor = WorkflowExecutor(agent, agent.memory)
+    
+    try:
+        result = await workflow_executor.execute_workflow(request.workflow_id, request.context)
+        return WorkflowExecutionResponse(**result)
+    except Exception as e:
+        logger.error(f"Workflow execution failed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/workflows/executions/{execution_id}", tags=["Workflow Automation"])
+async def get_workflow_execution(execution_id: str):
+    """Get the status of a workflow execution."""
+    global workflow_executor
+    
+    if workflow_executor is None:
+        raise HTTPException(status_code=400, detail="Workflow executor not initialized")
+    
+    execution = workflow_executor.get_execution_status(execution_id)
+    if execution is None:
+        raise HTTPException(status_code=404, detail=f"Execution not found: {execution_id}")
+    
+    return execution
+
+
+@app.get("/workflows/executions", tags=["Workflow Automation"])
+async def list_workflow_executions():
+    """List all active workflow executions."""
+    global workflow_executor
+    
+    if workflow_executor is None:
+        raise HTTPException(status_code=400, detail="Workflow executor not initialized")
+    
+    return workflow_executor.list_active_executions()
 
 
 @app.get("/audit", tags=["Safety"])

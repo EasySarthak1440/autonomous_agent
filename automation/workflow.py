@@ -8,8 +8,12 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from ..memory import MemorySystem
+# Add project root to path for imports
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
+from memory import MemorySystem
 
 class WorkflowStatus(Enum):
     DRAFT = "draft"
