@@ -3,6 +3,25 @@
 A self-contained AI system powered by LLMs that can autonomously execute business processes with minimal human intervention. Features a modern dark-themed web dashboard for easy interaction.
 Open source and community-driven - contributions welcome!
 
+## About
+
+This project is an **autonomous AI agent** designed to automate business processes using Large Language Models. It combines LLM-powered reasoning with a modular tool system to understand goals, create execution plans, and complete tasks autonomously.
+
+**Key Capabilities:**
+- Understand natural language goals and break them into executable steps
+- Learn from past executions using hierarchical memory (semantic, episodic, procedural)
+- Execute tasks using 37+ built-in tools (file operations, databases, email, Slack, etc.)
+- Validate actions through safety checks and audit logging
+- Monitor performance via Prometheus metrics and structured logging
+
+**Built With:**
+- **Groq API** - Fast LLM inference for reasoning and planning
+- **FastAPI** - REST API for integration and web dashboard
+- **SQLite** - Local memory and knowledge storage
+- **Prometheus** - Metrics and observability
+
+This is suitable for developers building AI-powered automation, researchers exploring autonomous agents, or businesses looking to streamline workflows with LLMs.
+
 ## Features
 
 - **LLM-Powered Reasoning**: Uses Groq API for intelligent decision-making
