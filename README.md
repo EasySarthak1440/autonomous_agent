@@ -5,7 +5,7 @@ Open source and community-driven - contributions welcome!
 
 ## Features
 
-- **LLM-Powered Reasoning**: Uses Groq API (LLM) or Ollama (local) for intelligent decision-making
+- **LLM-Powered Reasoning**: Uses Groq API for intelligent decision-making
 - **Modern Web Dashboard**: Dark-themed UI for task execution, tool management, and monitoring
 - **Modular Tool System**: Built-in tools for files, databases, data processing, communication (Email, Slack, Teams), cloud storage (S3), and more
 - **Hierarchical Memory**: Semantic, episodic, and procedural memory for learning
@@ -22,14 +22,10 @@ Open source and community-driven - contributions welcome!
 ### Using Docker Compose (Recommended)
 
 ```bash
-# Start all services (Ollama + Agent API)
 docker-compose up --build
 
 # Run in background
 docker-compose up -d
-
-# Check status
-docker-compose ps
 
 # View logs
 docker-compose logs -f agent
@@ -41,18 +37,11 @@ docker-compose logs -f agent
 # Install dependencies
 pip install -r requirements.txt
 
-# Start Ollama (for local LLM)
-ollama serve
-
-# Pull a model (if not already)
-ollama pull llama3.2
-
-# Configure environment (optional)
+# Configure environment
 cp .env.example .env
 # Edit .env with your credentials:
-# - GROQ_API_KEY for cloud LLM (optional if using Ollama)
+# - GROQ_API_KEY (required for LLM)
 # - SMTP_* variables for email tools
-# - Optional: Enable enhanced features like METRICS_COLLECTION=true
 
 # Run the API
 python api/main.py
@@ -125,11 +114,9 @@ curl http://localhost:8000/health
 ### LLM Configuration
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GROQ_API_KEY` | - | Groq API key (required for cloud LLM) |
+| `GROQ_API_KEY` | - | Groq API key (required) |
 | `GROQ_MODEL` | `meta-llama/llama-4-scout-17b-16e-instruct` | LLM model to use |
 | `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Groq API base URL |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama base URL (for local LLM) |
-| `MODEL_NAME` | `llama3.2` | Ollama model to use |
 | `LOG_LEVEL` | `INFO` | Logging level |
 
 ### Email Configuration
