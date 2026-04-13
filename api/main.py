@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,7 +27,7 @@ from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTEN
 
 from core.agent import AutonomousAgent, AgentConfig, AgentResponse, AgentState, Task
 from core.llm import LLMBackend
-from autonomous_agent.automation.execution import WorkflowExecutor
+from automation.execution import WorkflowExecutor
 
 # Prometheus metrics
 TASK_COUNT = Counter('agent_tasks_total', 'Total number of tasks executed', ['status'])
@@ -112,8 +112,8 @@ class ExecuteTaskRequest(BaseModel):
     context: dict = Field(default_factory=dict, description="Additional context")
     priority: int = Field(1, ge=1, le=10, description="Task priority")
     
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "goal": "Generate a sales report for Q1 2024",
                 "description": "Create a comprehensive sales report",
@@ -121,6 +121,7 @@ class ExecuteTaskRequest(BaseModel):
                 "priority": 5
             }
         }
+    }
 
 
 class ExecuteTaskResponse(BaseModel):
@@ -440,15 +441,15 @@ async def execute_workflow(request: WorkflowExecutionRequest):
     
     if workflow_executor is None:
         # Initialize workflow executor if not already done
-from autonomous_agent.automation.execution import WorkflowExecutor
+        from autonomous_agent.automation.execution import WorkflowExecutor
         workflow_executor = WorkflowExecutor(agent, agent.memory)
-    
-    try:
-        result = await workflow_executor.execute_workflow(request.workflow_id, request.context)
-        return WorkflowExecutionResponse(**result)
-    except Exception as e:
-        logger.error(f"Workflow execution failed: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        
+        try:
+            result = await workflow_executor.execute_workflow(request.workflow_id, request.context)
+            return WorkflowExecutionResponse(**result)
+        except Exception as e:
+            logger.error(f"Workflow execution failed: {e}")
+            raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/workflows/executions/{execution_id}", tags=["Workflow Automation"])
