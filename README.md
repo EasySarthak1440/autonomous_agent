@@ -239,6 +239,3 @@ flake8 autonomous_agent/
 # safety check
 ```
 
-## License
-
-MIT
