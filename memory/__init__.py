@@ -210,7 +210,7 @@ class MemorySystem:
         where_clause = " AND ".join(conditions)
         
         cursor.execute(f"""
-            SELECT id, content, memory_type, importance, created_at, metadata
+            SELECT id, content, memory_type, importance, created_at, metadata, entities, relationships
             FROM memories
             WHERE {where_clause}
             ORDER BY importance DESC

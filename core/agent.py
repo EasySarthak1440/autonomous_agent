@@ -273,7 +273,7 @@ class AutonomousAgent:
                 state=AgentState.ERROR,
                 error=str(e),
                 execution_time=execution_time,
-                metrics={
+                metadata={
                     "trace_id": trace_id,
                     "execution_time": execution_time,
                     "error": str(e),
@@ -453,11 +453,11 @@ class AutonomousAgent:
             metrics["planning_error"] = str(e)
             
             # Fallback: create a simple plan
-            from planning import Plan
-            plan = Plan(
+            from planning import Planner
+            plan = ExecutionPlan(
                 goal=goal,
                 steps=[],  # Empty plan as fallback
-                context=context
+
             )
             return plan
 

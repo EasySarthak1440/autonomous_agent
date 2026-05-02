@@ -4,12 +4,13 @@ Planning and Execution Engine
 
 import json
 import logging
+import os
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
-
 logger = logging.getLogger(__name__)
 
 
@@ -81,6 +82,17 @@ class Planner:
     def __init__(self, llm, tool_registry):
         self.llm = llm
         self.tool_registry = tool_registry
+
+    def load_tool_prompt(self, tool_name: str) -> dict:
+        prompt_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), 
+            "tool_prompts", 
+            f"{tool_name}.json"
+        )
+        if os.path.exists(prompt_path):
+            with open(prompt_path) as f:
+                return json.load(f)
+        return {}
     
     async def create_plan(self, goal: str, context: dict) -> ExecutionPlan:
         """
@@ -118,16 +130,42 @@ class Planner:
             tools_list.append(f'  "{t_name}": {t_desc}. Params: {params_str}')
         
         tools_description = "\n".join(tools_list)
-        
+
+# Load tool prompts for relevant tools
+        tool_prompt_examples = []
+        for t in relevant_tools:
+            t_name = t.get("name", "") if isinstance(t, dict) else t.name
+            tool_prompt = self.load_tool_prompt(t_name)
+            if tool_prompt:
+                examples_str = json.dumps(tool_prompt.get("examples", []), indent=2)
+                rules_str = json.dumps(tool_prompt.get("parameter_rules", {}), indent=2)
+                bad_str = json.dumps(tool_prompt.get("bad_examples", []), indent=2)
+                tool_prompt_examples.append(f"""
+Tool: {t_name}
+Use when: {tool_prompt.get("when_to_use", "")}
+Parameter Rules: {rules_str}
+Good Examples: {examples_str}
+Bad Examples (NEVER do this): {bad_str}
+""")
+
+        tool_prompts_section = "\n".join(tool_prompt_examples) if tool_prompt_examples else ""
+        tool_guide = f'TOOL USAGE GUIDE:\n{tool_prompts_section}' if tool_prompts_section else ""
+
         system_prompt = f"""You plan tasks by selecting tools. Return ONLY valid JSON.
 
-Available tools:
-{tools_description}
+        Available tools:
+        {tools_description}
 
-Rules:
-- Use EXACT tool names from the list
-- Include ALL required parameters with real values
-- Return ONLY JSON, no markdown, no explanation"""
+        {tool_guide}
+
+        Rules:
+        - Use EXACT tool names from the list
+        - Include ALL required parameters with real values
+        - Return ONLY JSON, no markdown, no explanation
+        - For math/calculation/average/sum/difference/product/percentage tasks, ALWAYS use "calculate" tool
+          with the expression as a Python-safe math expression (e.g., "(10 + 20) / 2")
+        - NEVER use "generate_report" for mathematical calculations
+        - Follow parameter rules EXACTLY as shown in TOOL USAGE GUIDE"""
         
         user_prompt = f"""Goal: {goal}
 
@@ -194,6 +232,33 @@ Return JSON with steps. Each step has "action" (tool name) and "parameters" (dic
             
         except Exception as e:
             logger.error(f"Failed to create plan: {e}")
+            # Smart fallback: detect if goal is a math query
+            goal_lower = goal.lower()
+            math_keywords = ['average', 'mean', 'sum', 'calculate', 'add', 'subtract', 'multiply', 'divide', 'plus', 'minus', 'times', 'percent']
+            has_math = any(kw in goal_lower for kw in math_keywords)
+            has_numbers = bool(re.search(r'\d+', goal))
+            
+            if has_math and has_numbers:
+                # Try to extract numbers and build a simple expression
+                numbers = [int(n) for n in re.findall(r'\d+', goal)]
+                if 'average' in goal_lower or 'mean' in goal_lower:
+                    expr = f"({'+'.join(str(n) for n in numbers)}) / {len(numbers)}"
+                elif 'sum' in goal_lower or 'add' in goal_lower or 'plus' in goal_lower:
+                    expr = '+'.join(str(n) for n in numbers)
+                elif 'multiply' in goal_lower or 'times' in goal_lower:
+                    expr = '*'.join(str(n) for n in numbers)
+                elif len(numbers) == 2 and ('subtract' in goal_lower or 'minus' in goal_lower):
+                    expr = f"{numbers[0]} - {numbers[1]}"
+                elif len(numbers) == 2 and 'divide' in goal_lower:
+                    expr = f"{numbers[0]} / {numbers[1]}"
+                else:
+                    expr = '+'.join(str(n) for n in numbers)
+                
+                return ExecutionPlan(
+                    goal=goal,
+                    steps=[ExecutionStep(action="calculate", parameters={"expression": expr})]
+                )
+            
             return ExecutionPlan(
                 goal=goal,
                 steps=[ExecutionStep(action="generate_report", parameters={"title": goal, "data": {"goal": goal}})]
@@ -220,6 +285,7 @@ class PlanExecutor:
         
         # Interpolate parameters from context
         parameters = self._interpolate_parameters(parameters, context)
+        parameters = self._sanitize_parameters(tool_name, parameters)
         
         logger.info(f"Executing step: {tool_name} with params: {parameters}")
         
@@ -270,6 +336,36 @@ class PlanExecutor:
             interpolated[key] = value
         
         return interpolated
+
+    def _sanitize_parameters(self, tool_name: str, parameters: dict) -> dict:
+        """Convert LLM function descriptions to actual values."""
+        sanitized = {}
+        for key, value in parameters.items():
+            if isinstance(value, dict) and "function_name" in value:
+                fn = value.get("function_name", "")
+                args = value.get("args", [])
+
+                # Handle "list(range(1, 101))" as full string
+                if "range" in fn:
+                    import re
+                    numbers = re.findall(r'\d+', fn)
+                    if len(numbers) >= 2:
+                        value = list(range(int(numbers[0]), int(numbers[1])))
+                    elif len(numbers) == 1:
+                        value = list(range(1, int(numbers[0]) + 1))
+                elif fn == "list" and args:
+                    inner = args[0]
+                    if isinstance(inner, dict) and inner.get("function_name") == "range":
+                        range_args = inner.get("args", [])
+                        value = list(range(*range_args))
+                    else:
+                        value = list(inner) if hasattr(inner, '__iter__') else []
+                elif fn == "range":
+                    value = list(range(*args))
+
+            sanitized[key] = value
+        return sanitized
+
     
     async def execute_plan(self, plan: ExecutionPlan, context: dict) -> ExecutionResult:
         """Execute a complete plan."""
@@ -337,3 +433,6 @@ class PlanExecutor:
             tools_used=list(set(tools_used)),
             confidence=sum(r.confidence for r in results) / len(results) if results else 0.0
         )
+
+
+
