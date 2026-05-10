@@ -10,7 +10,7 @@ This project is an **autonomous AI agent** designed to automate business process
 **Key Capabilities:**
 - Understand natural language goals and break them into executable steps
 - Learn from past executions using hierarchical memory (semantic, episodic, procedural)
-- Execute tasks using 37+ built-in tools (file operations, databases, email, Slack, etc.)
+- Execute tasks using 10+ built-in tools (file operations, databases, email, Slack, etc.)
 - Validate actions through safety checks and audit logging
 - Monitor performance via Prometheus metrics and structured logging
 
