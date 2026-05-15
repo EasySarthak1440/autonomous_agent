@@ -199,7 +199,7 @@ curl http://localhost:8000/health
 ## Available Tools
 
 - **File Operations**: `read_file`, `write_file`, `list_directory`, `file_exists`, `search_files`
-- **Database**: `execute_sqlite`, `create_sqlite_table`, `query_postgres`, `query_mysql`
+- **Database**: `sql_manager` (supports CREATE TABLE, INSERT, SELECT, UPDATE, DELETE, DROP, TRUNCATE, JOIN, GROUP BY, ORDER BY, LIMIT, subqueries, aggregate functions, and more)
 - **Data Processing**: `parse_json`, `to_json`, `filter_data`, `aggregate_data`
 - **Data Transformation**: `convert_csv_to_json`, `convert_json_to_csv`, `read_excel`, `write_excel`
 - **Text Processing**: `extract_emails`, `extract_urls`, `text_summary`

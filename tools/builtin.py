@@ -47,29 +47,143 @@ def read_file(path: str, encoding: str = "utf-8") -> dict:
 
 # ==================== Database Tools ====================
 
+_SELECT_OPS = {"SELECT", "WITH"}
+_WRITE_OPS = {"INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "TRUNCATE", "ALTER"}
+
+
+def _detect_query_type(query: str) -> str:
+    """Detect the SQL query type from the statement."""
+    q = query.strip().upper()
+    if q.startswith("SELECT") or q.startswith("WITH"):
+        return "select"
+    if q.startswith("INSERT"):
+        return "insert"
+    if q.startswith("UPDATE"):
+        return "update"
+    if q.startswith("DELETE"):
+        return "delete"
+    if q.startswith("CREATE DATABASE"):
+        return "create_database"
+    if q.startswith("CREATE TABLE"):
+        return "create_table"
+    if q.startswith("CREATE"):
+        return "create"
+    if q.startswith("DROP"):
+        return "drop"
+    if q.startswith("TRUNCATE"):
+        return "truncate"
+    if q.startswith("ALTER"):
+        return "alter"
+    if q.startswith("PRAGMA"):
+        return "pragma"
+    return "other"
+
+
+def _query_result_to_dict(cursor) -> dict:
+    """Convert cursor result to a dict with columns and rows."""
+    rows = [dict(row) for row in cursor.fetchall()]
+    columns = [desc[0] for desc in cursor.description] if cursor.description else []
+    return {"columns": columns, "rows": rows, "row_count": len(rows)}
+
+
 @tool(
-    name="create_sqlite_table",
-    description="Create a table in SQLite database",
+    name="sql_manager",
+    description="Execute any SQL query on a SQLite database. "
+                "Supports: CREATE TABLE, INSERT, SELECT, UPDATE, DELETE, "
+                "DROP, TRUNCATE, JOIN, GROUP BY, ORDER BY, LIMIT, "
+                "aggregate functions, subqueries, and more. "
+                "Use params for safe parameterized queries.",
     category="database",
-    tags=["database", "sql", "sqlite", "create"]
+    tags=["database", "sql", "sqlite", "query", "manager"]
 )
-def create_sqlite_table(db_path: str, table_name: str, schema: dict) -> dict:
-    """Create a table with given schema."""
+def sql_manager(db_path: str, query: str, params: list = None) -> dict:
+    """
+    Execute SQL queries on a SQLite database.
+
+    Args:
+        db_path: Path to the SQLite database file
+        query: The SQL query to execute
+        params: Optional list of parameters for parameterized queries (prevents SQL injection)
+
+    Returns:
+        dict with success status, operation type, and query results
+    """
+    if params is None:
+        params = []
+
+    if not query or not query.strip():
+        return {"success": False, "error": "Query cannot be empty"}
+
     try:
-        columns = ", ".join([f"{name} {dtype}" for name, dtype in schema.items()])
-        query = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns})"
-
+        qtype = _detect_query_type(query)
         conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute(query)
-        conn.commit()
-        conn.close()
 
-        return {
-            "success": True,
-            "table": table_name,
-            "schema": schema
-        }
+        cursor.execute(query, params)
+
+        if qtype == "select":
+            result = _query_result_to_dict(cursor)
+            result.update({"success": True, "operation": "select"})
+            conn.close()
+            return result
+
+        conn.commit()
+
+        if qtype == "insert":
+            result = {
+                "success": True,
+                "operation": "insert",
+                "affected_rows": cursor.rowcount,
+                "last_insert_id": cursor.lastrowid,
+            }
+        elif qtype == "update":
+            result = {
+                "success": True,
+                "operation": "update",
+                "affected_rows": cursor.rowcount,
+            }
+        elif qtype == "delete":
+            result = {
+                "success": True,
+                "operation": "delete",
+                "affected_rows": cursor.rowcount,
+            }
+        elif qtype == "create_database":
+            result = {
+                "success": True,
+                "operation": "create_database",
+                "message": f"Database ready: {db_path}",
+            }
+        elif qtype in ("create_table", "create"):
+            result = {
+                "success": True,
+                "operation": qtype,
+                "message": "Object created successfully",
+            }
+        elif qtype == "drop":
+            result = {
+                "success": True,
+                "operation": "drop",
+                "message": "Object dropped successfully",
+            }
+        elif qtype == "truncate":
+            result = {
+                "success": True,
+                "operation": "truncate",
+                "message": "Table truncated successfully",
+            }
+        else:
+            result = {
+                "success": True,
+                "operation": qtype,
+                "affected_rows": cursor.rowcount,
+                "message": "Query executed successfully",
+            }
+
+        conn.close()
+        return result
+
     except Exception as e:
         return {"success": False, "error": str(e)}
 

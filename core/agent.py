@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.llm import LLMBackend
+from core.llm import LLMBackend, RateLimitError
 from tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -442,24 +442,41 @@ class AutonomousAgent:
 
     async def _generate_plan_with_fallback(self, goal: str, context: dict, metrics: Dict):
         """Generate execution plan with fallback strategy."""
-        try:
-            # Try primary planning approach
-            plan = await self.planner.create_plan(goal, context)
-            metrics["planning_approach"] = "primary"
-            return plan
-        except Exception as e:
-            logger.warning(f"Primary planning failed, trying fallback: {e}")
-            metrics["planning_approach"] = "fallback"
-            metrics["planning_error"] = str(e)
-            
-            # Fallback: create a simple plan
-            from planning import Planner
-            plan = ExecutionPlan(
-                goal=goal,
-                steps=[],  # Empty plan as fallback
+        max_retries = 3
+        last_error = None
 
-            )
-            return plan
+        for attempt in range(max_retries):
+            try:
+                plan = await self.planner.create_plan(goal, context)
+                metrics["planning_approach"] = "primary"
+                metrics["planning_retries"] = attempt
+                return plan
+            except RateLimitError as e:
+                last_error = e
+                retry_after = getattr(e, "retry_after", None)
+                wait = retry_after or (2 ** attempt * 5)
+                logger.warning(
+                    f"Rate limited (attempt {attempt + 1}/{max_retries}). "
+                    f"Waiting {wait}s..."
+                )
+                await asyncio.sleep(wait)
+            except Exception as e:
+                logger.warning(f"Primary planning failed, trying fallback: {e}")
+                metrics["planning_approach"] = "fallback"
+                metrics["planning_error"] = str(e)
+                return self._build_fallback_plan(goal)
+
+        logger.error(f"All {max_retries} attempts failed due to rate limiting")
+        metrics["planning_approach"] = "fallback"
+        metrics["planning_error"] = str(last_error)
+        return self._build_fallback_plan(goal)
+
+    def _build_fallback_plan(self, goal: str):
+        """Build a direct tool-based plan when LLM is unavailable."""
+        from planning import ExecutionPlan
+        from planning import Planner
+        planner = Planner(self.llm, self.tool_registry)
+        return planner._build_smart_fallback(goal)
 
     async def _execute_plan_with_enhanced_safety(self, plan, context, metrics):
         """Execute plan with enhanced safety checks."""

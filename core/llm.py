@@ -4,9 +4,17 @@ LLM Backend - Integration with Groq API (OpenAI-compatible)
 
 import json
 import logging
+import re
 from typing import Any, Optional
 import aiohttp
 import asyncio
+
+
+class RateLimitError(Exception):
+    """Raised when the LLM API returns a 429 rate limit error."""
+    def __init__(self, message: str, retry_after: Optional[int] = None):
+        self.retry_after = retry_after
+        super().__init__(message)
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +78,16 @@ class LLMBackend:
                 if response.status == 200:
                     result = await response.json()
                     return result["choices"][0]["message"]["content"]
+                elif response.status == 429:
+                    error = await response.text()
+                    retry_after = None
+                    m = re.search(r'try again in ([\d.]+)m([\d.]+)s', error)
+                    if m:
+                        retry_after = int(float(m.group(1)) * 60 + float(m.group(2)))
+                    msg = f"Groq API rate limit reached."
+                    if retry_after:
+                        msg += f" Retry in {retry_after // 60}m{retry_after % 60}s."
+                    raise RateLimitError(msg, retry_after=retry_after)
                 else:
                     error = await response.text()
                     raise Exception(f"LLM API error: {response.status} - {error}")
@@ -141,6 +159,16 @@ JSON Response:"""
                 if response.status == 200:
                     result = await response.json()
                     return result["choices"][0]["message"]["content"]
+                elif response.status == 429:
+                    error = await response.text()
+                    retry_after = None
+                    m = re.search(r'try again in ([\d.]+)m([\d.]+)s', error)
+                    if m:
+                        retry_after = int(float(m.group(1)) * 60 + float(m.group(2)))
+                    msg = f"Groq API rate limit reached."
+                    if retry_after:
+                        msg += f" Retry in {retry_after // 60}m{retry_after % 60}s."
+                    raise RateLimitError(msg, retry_after=retry_after)
                 else:
                     error = await response.text()
                     raise Exception(f"LLM API error: {response.status} - {error}")

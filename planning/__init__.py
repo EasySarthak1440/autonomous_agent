@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
+from core.llm import RateLimitError
 logger = logging.getLogger(__name__)
 
 
@@ -231,6 +232,8 @@ Return JSON with steps. Each step has "action" (tool name) and "parameters" (dic
             return plan
             
         except Exception as e:
+            if isinstance(e, RateLimitError):
+                raise  # Let the user see the rate limit message
             logger.error(f"Failed to create plan: {e}")
             # Smart fallback: detect if goal is a math query
             goal_lower = goal.lower()
@@ -259,10 +262,50 @@ Return JSON with steps. Each step has "action" (tool name) and "parameters" (dic
                     steps=[ExecutionStep(action="calculate", parameters={"expression": expr})]
                 )
             
-            return ExecutionPlan(
-                goal=goal,
-                steps=[ExecutionStep(action="generate_report", parameters={"title": goal, "data": {"goal": goal}})]
-            )
+            return self._build_smart_fallback(goal)
+
+    def _build_smart_fallback(self, goal: str) -> ExecutionPlan:
+        """Build fallback plan using direct tool calls when LLM is unavailable."""
+        goal_lower = goal.lower()
+
+        sql_keywords = [
+            "select", "insert", "update", "delete", "from", "table",
+            "database", "db", "sql", "show", "employees", "rows",
+            "column", "where", "data"
+        ]
+        has_sql = any(kw in goal_lower for kw in sql_keywords)
+        db_files = [f for f in os.listdir('.') if f.endswith(('.db', '.sqlite'))]
+
+        if has_sql:
+            if db_files:
+                steps = []
+                for db_file in db_files:
+                    steps.append(ExecutionStep(
+                        action="sql_manager",
+                        parameters={
+                            "db_path": db_file,
+                            "query": "SELECT name FROM sqlite_master WHERE type='table'"
+                        },
+                        tool_name="sql_manager",
+                        max_retries=1
+                    ))
+
+                    steps.append(ExecutionStep(
+                        action="sql_manager",
+                        parameters={
+                            "db_path": db_file,
+                            "query": "SELECT * FROM employees",
+                        },
+                        tool_name="sql_manager",
+                        max_retries=1,
+                        depends_on=[steps[-1].id]
+                    ))
+                    break
+
+                if steps:
+                    return ExecutionPlan(goal=goal, steps=steps)
+
+        return ExecutionPlan(goal=goal, steps=[])
     
     def create_executor(self) -> 'PlanExecutor':
         """Create an executor for the plan."""

@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 from core.agent import AutonomousAgent, AgentConfig, AgentResponse, AgentState, Task
-from core.llm import LLMBackend
+from core.llm import LLMBackend, RateLimitError
 from automation.execution import WorkflowExecutor
 
 # Prometheus metrics
@@ -279,6 +279,12 @@ async def execute_task(request: ExecuteTaskRequest, background_tasks: Background
             needs_human_input=response.needs_human_input
         )
         
+    except RateLimitError as e:
+        duration = time.time() - start_time
+        TASK_DURATION.observe(duration)
+        TASK_COUNT.labels(status="rate_limited").inc()
+        logger.warning(f"Rate limited: {e}")
+        raise HTTPException(status_code=429, detail=str(e))
     except Exception as e:
         # Record failed task metrics
         duration = time.time() - start_time
