@@ -10,7 +10,7 @@ This project is an **autonomous AI agent** designed to automate business process
 **Key Capabilities:**
 - Understand natural language goals and break them into executable steps
 - Learn from past executions using hierarchical memory (semantic, episodic, procedural)
-- Execute tasks using 10+ built-in tools (file operations, databases, email, Slack, etc.)
+- Execute tasks using built-in tools (file operations, databases, data processing, email, etc.)
 - Validate actions through safety checks and audit logging
 - Monitor performance via Prometheus metrics and structured logging
 
@@ -26,7 +26,7 @@ This is suitable for developers building AI-powered automation, researchers expl
 
 - **LLM-Powered Reasoning**: Uses Groq API for intelligent decision-making
 - **Modern Web Dashboard**: Dark-themed UI for task execution, tool management, and monitoring
-- **Modular Tool System**: Built-in tools for files, databases, data processing, communication (Email, Slack, Teams), cloud storage (S3), and more
+- **Modular Tool System**: Built-in tools for files, databases, data processing, email (SMTP), calendar, Excel, and S3 (some require extra packages)
 - **Hierarchical Memory**: Semantic, episodic, and procedural memory for learning
 - **Planning Engine**: LLM-driven task decomposition and execution with fallback strategies
 - **AI/ML Enhancements**: Token management, hallucination detection, prompt engineering best practices
@@ -73,7 +73,7 @@ Access the dashboard at **http://localhost:8000/ui** when the API is running.
 Features:
 - **System Health** - Real-time agent status, LLM connection, tools count, memory stats
 - **Task Execution** - Submit natural language goals for LLM-powered planning
-- **Tools Browser** - Browse all 37+ available tools with descriptions
+- **Tools Browser** - Browse all available tools with descriptions
 - **Memory Viewer** - View and clear stored agent memories
 - **Audit Log** - Safety validation event history
 
@@ -198,18 +198,30 @@ curl http://localhost:8000/health
 
 ## Available Tools
 
-- **File Operations**: `read_file`, `write_file`, `list_directory`, `file_exists`, `search_files`
-- **Database**: `sql_manager` (supports CREATE TABLE, INSERT, SELECT, UPDATE, DELETE, DROP, TRUNCATE, JOIN, GROUP BY, ORDER BY, LIMIT, subqueries, aggregate functions, and more)
-- **Data Processing**: `parse_json`, `to_json`, `filter_data`, `aggregate_data`
-- **Data Transformation**: `convert_csv_to_json`, `convert_json_to_csv`, `read_excel`, `write_excel`
-- **Text Processing**: `extract_emails`, `extract_urls`, `text_summary`
-- **System**: `get_timestamp`, `execute_command`
-- **Communication**: `send_email`, `send_slack_message`, `send_teams_message`, `send_webhook`
-- **Cloud Storage**: `upload_to_s3`, `download_from_s3`
-- **Productivity**: `create_reminder`, `generate_report`, `create_calendar_event`, `get_calendar_events`
-- **Project Management**: `create_jira_issue`, `update_jira_issue`
-- **Notion**: `create_notion_page`, `query_notion_database`
-- **HTTP/API**: `http_request`
+12 tools are currently registered:
+
+- **Filesystem**: `read_file`
+- **Database**: `sql_manager` — full SQLite support (SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, JOIN, etc.)
+- **Data Processing**: `filter_data`, `aggregate_data` (sum, avg, count, min, max), `calculate` (safe math expression evaluator)
+- **System**: `execute_command` (shell commands, 30s timeout)
+- **Communication**: `send_email` (SMTP, requires `SMTP_USERNAME`/`SMTP_PASSWORD`)
+- **Productivity**: `create_calendar_event`, `get_calendar_events` (stubs — API integration needed)
+- **Excel**: `read_excel`, `write_excel` (require `openpyxl` — not installed by default)
+- **Cloud Storage**: `download_from_s3` (requires `boto3` — not installed by default)
+
+### Adding New Tools
+
+Place them in `tools/builtin.py` or `tools/industry.py` using the `@tool` decorator:
+
+```python
+from . import tool
+
+@tool(name="my_tool", description="Does something", category="my_category")
+def my_tool(arg1: str) -> dict:
+    return {"result": arg1}
+```
+
+The `ToolRegistry` auto-registers tools from these modules on import.
 
 ## Safety Features
 
@@ -225,17 +237,10 @@ curl http://localhost:8000/health
 # Run tests
 pytest tests/ -v
 
-# Run enhanced AI-specific tests (if available)
-pytest tests/ -v -m ai
-
 # Format code
 black autonomous_agent/
 
 # Lint
 flake8 autonomous_agent/
-
-# Run security scans (if tools available)
-# bandit -r autonomous_agent/
-# safety check
 ```
 
